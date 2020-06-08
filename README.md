@@ -141,14 +141,15 @@ main `ConcurrentHashMap`.
 
 ### Flaws and possible improvements
 
-1. **Modifications limit**. At the moment current implementation has strong limitation for a 100 parallel modifications. 
+1. **Indication of complete in the middle of upload chunk running**. This case is not covered by current implementation. So it is possible at the moment that if producer will execute `complete` on the batch instance while in parallel thread `upload(chunk)` was called in this case from consumer side it would not be able to see not yet populated modifications. I assume it can be solved using following idea. In `Update` object we add a counter (AtomicInteger) of inprogress uploads and boolean volatile variable to keep there intention of completion/canceling the batch. On upload we increment counter before start upload check to ensure that finalization is not yet requested and decrement on finish. On complete call we update voolean volatile to stop any further uploads, and wait till inprogress counter becomes zero and only after that we change status value.
+2. **Modifications limit**. At the moment current implementation has strong limitation for a 100 parallel modifications. 
 I've added *TODO* for the most obvious improvement that can be done. It is to merge modifications coming from the same 
 batch and leave there only latest one. In general this 100 can become configuration parameter,
-2. **Add batch timeout**. It makes sense to add a timeout for batch sessions to evict (cancel) them on reaching it.
-3. **Move cleaningPool to CleaningService**. From OOD perspective it makes more sense to have cleaning tasks thread pool
+3. **Add batch timeout**. It makes sense to add a timeout for batch sessions to evict (cancel) them on reaching it.
+4. **Move cleaningPool to CleaningService**. From OOD perspective it makes more sense to have cleaning tasks thread pool
 inside cleaning service itself. Because configuration of the pool couples with disruptor configuration inside cleaning 
 service implementation.
-4. **Add unit tests for shutdown**. Shutdown procedure must be thoroughly covered by unit tests.
-5. **Make performance less dependent on the storage size**. Benchmarks of the `DataWrapper` shows that it is quite 
+5. **Add unit tests for shutdown**. Shutdown procedure must be thoroughly covered by unit tests.
+6. **Make performance less dependent on the storage size**. Benchmarks of the `DataWrapper` shows that it is quite 
 performant. And it looks like a lot of time is wasted at the level of the `InMemoryStorage`. If I'd have more time I would 
 investigate the real reason behind that.                
