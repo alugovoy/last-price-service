@@ -1,15 +1,14 @@
 package com.alugovoy.finance.storage.inmemory.benchmarks;
 
+import static com.alugovoy.finance.storage.inmemory.utils.DateUtils.randomDate;
+
 import com.alugovoy.finance.storage.PriceData;
 import com.alugovoy.finance.storage.inmemory.DataWrapper;
 import com.alugovoy.finance.storage.inmemory.DataWrapper.Modification;
 import com.alugovoy.finance.storage.inmemory.Update;
 import com.alugovoy.finance.storage.inmemory.Update.Status;
-import java.time.Instant;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.val;
@@ -59,8 +58,6 @@ public class DataWrapperBenchmark {
 
     private static final Comparator<PriceData<Object>> DEFAULT_SUCCESSOR_CHOICE = Comparator
         .comparing(PriceData::getAsOf);
-    private static final Date FROM = toDate("2020-05-01");
-    private static final Date TO = toDate("2020-06-01");
 
     private DataWrapper<Object> wrapper;
     private DataWrapper<Object> wrapperNoUpdates;
@@ -119,14 +116,6 @@ public class DataWrapperBenchmark {
     private static Modification<Object> buildRandomModification() {
         return new Modification<>(UUID.randomUUID(), new Status(),
             new PriceData<>(UUID.randomUUID() + "", randomDate(), new Object()));
-    }
-
-    private static Date randomDate() {
-        return new Date(ThreadLocalRandom.current().nextLong(FROM.getTime(), TO.getTime()));
-    }
-
-    private static Date toDate(String date) {
-        return new Date(TimeUnit.SECONDS.toMillis(Instant.parse(date + "T00:00:00Z").getEpochSecond()));
     }
 
 

@@ -1,5 +1,6 @@
 package com.alugovoy.finance.storage.inmemory;
 
+import static com.alugovoy.finance.storage.inmemory.utils.DateUtils.toDate;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
@@ -108,9 +109,5 @@ public class DataWrapperTest {
     private Modification<Object> buildModification(UUID dataId, String date) {
         return new Modification<>(UUID.randomUUID(), new Status(),
             new PriceData<>(dataId.toString(), toDate(date), new Object()));
-    }
-
-    private Date toDate(String date) {
-        return new Date(TimeUnit.SECONDS.toMillis(Instant.parse(date + "T00:00:00Z").getEpochSecond()));
     }
 }
