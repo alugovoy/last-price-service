@@ -17,7 +17,7 @@ public interface Batch<T> {
      *
      * @throws IllegalStateException in case if batch was canceled or when service was shutdown
      */
-    void complete() throws IllegalStateException;
+    void complete() throws IllegalStateException, InterruptedException;
 
     /**
      * Cancels the batch. All data sent during batch is discarded

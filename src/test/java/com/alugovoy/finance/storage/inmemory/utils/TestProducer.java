@@ -27,7 +27,7 @@ public class TestProducer<T> {
         this.loadedIds = ConcurrentHashMap.newKeySet(size);
     }
 
-    public void uploadBatch(Batch<T> batch, int chunkSize) {
+    public void uploadBatch(Batch<T> batch, int chunkSize) throws InterruptedException {
 
         IntStream.range(1, ids.size() / chunkSize)
             .parallel()

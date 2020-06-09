@@ -35,19 +35,19 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 /**
  * <pre>
- * Benchmark                                                         (SIZE)  Mode  Cnt        Score        Error  Units
- * InMemoryStorageBenchmark.getLatestWithoutParallelUpdated         1000000  avgt    5      578.589 ±     14.930  ns/op
- * InMemoryStorageBenchmark.getLatestWithoutParallelUpdated          100000  avgt    5      445.980 ±     23.089  ns/op
- * InMemoryStorageBenchmark.getLatestWithoutParallelUpdated           10000  avgt    5      152.892 ±     89.405  ns/op
- * InMemoryStorageBenchmark.parallel                                1000000  avgt    5   253331.487 ± 103734.831  ns/op
- * InMemoryStorageBenchmark.parallel:getLatest                      1000000  avgt    5     1503.328 ±    319.491  ns/op
- * InMemoryStorageBenchmark.parallel:uploadBatch                    1000000  avgt    5  2016128.604 ± 828586.999  ns/op
- * InMemoryStorageBenchmark.parallel                                 100000  avgt    5   147512.463 ±  16621.843  ns/op
- * InMemoryStorageBenchmark.parallel:getLatest                       100000  avgt    5      662.027 ±     72.414  ns/op
- * InMemoryStorageBenchmark.parallel:uploadBatch                     100000  avgt    5  1175465.515 ± 132471.110  ns/op
- * InMemoryStorageBenchmark.parallel                                  10000  avgt    5    71885.219 ±   3232.486  ns/op
- * InMemoryStorageBenchmark.parallel:getLatest                        10000  avgt    5      269.708 ±     45.554  ns/op
- * InMemoryStorageBenchmark.parallel:uploadBatch                      10000  avgt    5   573193.798 ±  25923.420  ns/op
+ * Benchmark                                                  (SIZE)  Mode  Cnt        Score        Error  Units
+ * InMemoryStorageBenchmark.getLatestWithoutParallelUpdated  1000000  avgt    5      400.524 ±     36.876  ns/op
+ * InMemoryStorageBenchmark.getLatestWithoutParallelUpdated   100000  avgt    5      264.520 ±      6.116  ns/op
+ * InMemoryStorageBenchmark.getLatestWithoutParallelUpdated    10000  avgt    5       66.988 ±      4.071  ns/op
+ * InMemoryStorageBenchmark.parallel                         1000000  avgt    5   211097.582 ±  55473.735  ns/op
+ * InMemoryStorageBenchmark.parallel:getLatest               1000000  avgt    5      988.469 ±    218.146  ns/op
+ * InMemoryStorageBenchmark.parallel:uploadBatch             1000000  avgt    5  1681861.372 ± 442595.272  ns/op
+ * InMemoryStorageBenchmark.parallel                          100000  avgt    5   151212.477 ±  14184.567  ns/op
+ * InMemoryStorageBenchmark.parallel:getLatest                100000  avgt    5      567.729 ±     52.051  ns/op
+ * InMemoryStorageBenchmark.parallel:uploadBatch              100000  avgt    5  1205725.715 ± 113509.420  ns/op
+ * InMemoryStorageBenchmark.parallel                           10000  avgt    5    72991.504 ±   3413.652  ns/op
+ * InMemoryStorageBenchmark.parallel:getLatest                 10000  avgt    5      188.091 ±     23.985  ns/op
+ * InMemoryStorageBenchmark.parallel:uploadBatch               10000  avgt    5   582615.396 ±  27257.001  ns/op
  * </pre>
  */
 
@@ -119,7 +119,7 @@ public class InMemoryStorageBenchmark {
         }
 
         @TearDown(Level.Invocation)
-        public void tearDown() {
+        public void tearDown() throws InterruptedException {
             itemsLoaded.addAndGet(CHUNK_SIZE);
             int loaded;
             while ((loaded = itemsLoaded.get()) > 1.1 * producer.size()) {
@@ -140,7 +140,7 @@ public class InMemoryStorageBenchmark {
     }
 
     @Setup
-    public void setup() {
+    public void setup() throws InterruptedException {
         producer = new TestProducer<>(SIZE, () -> new Byte[128]);
         storage = new InMemoryStorage<>(SIZE);
         storageNoParallelUpdates = new InMemoryStorage<>(SIZE);
