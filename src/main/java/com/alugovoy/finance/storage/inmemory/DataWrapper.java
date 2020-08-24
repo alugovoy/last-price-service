@@ -4,9 +4,9 @@ import com.alugovoy.finance.storage.PriceData;
 import java.io.PrintStream;
 import java.util.Comparator;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 import lombok.Data;
 import lombok.val;
 
@@ -19,18 +19,14 @@ public class DataWrapper<T> {
 
     private final AtomicReference<PriceData<T>> data;
 
-    private final AtomicReferenceArray<Modification<T>> modifications;
-    private final AtomicInteger modificationsSize;
-    private final AtomicInteger version;
+    private final ConcurrentMap<UUID, Modification<T>> modifications;
     private final Comparator<PriceData<T>> successorChooser;
 
     public DataWrapper(Modification<T> modification, Comparator<PriceData<T>> successorChooser) {
         this.data = new AtomicReference<>(null);
-        this.modifications = new AtomicReferenceArray<>(100);
-        this.modifications.set(0, modification);
-        this.modificationsSize = new AtomicInteger(1);
+        this.modifications = new ConcurrentHashMap<>();
+        this.modifications.put(modification.id, modification);
         this.successorChooser = successorChooser;
-        this.version = new AtomicInteger(0);
     }
 
     public void updateInProgress(Modification<T> modification) {
@@ -38,59 +34,17 @@ public class DataWrapper<T> {
         if (this.data.get() != null && successorChooser.compare(modification.data, this.data.get()) < 0) {
             return;
         }
-        version.incrementAndGet();
-        modificationsSize.incrementAndGet();
-        while (true) {
-            for (int i = 0; i < modifications.length(); i++) {
-                //TODO merge modifications with same batch ID
-                if (modifications.compareAndSet(i, null, modification)) {
-                    return;
-                }
-            }
-        }
+        modifications.merge(modification.id, modification,
+            (prev, next) -> successorChooser.compare(prev.data, next.data) > 0 ? prev : next);
     }
 
     public void updateCanceled(UUID updateId) {
-        int stillToVisit = modificationsSize.get();
-        if (stillToVisit == 0) {
-            return;
-        }
-        for (int i = 0; i < modifications.length(); i++) {
-            if (stillToVisit == 0) {
-                break;
-            }
-            val modification = modifications.get(i);
-            if (modification == null) {
-                continue;
-            }
-            stillToVisit--;
-            if (modification.id == updateId) {
-                if (modifications.compareAndSet(i, modification, null)) {
-                    modificationsSize.decrementAndGet();
-                }
-            }
-        }
+        modifications.remove(updateId);
     }
 
     public void updateCompleted(UUID updateId) {
-        int stillToVisit = modificationsSize.get();
-        if (stillToVisit == 0) {
-            return;
-        }
-
-        for (int i = 0; i < modifications.length(); i++) {
-            if (stillToVisit <= 0) {
-                break;
-            }
-            val modification = modifications.get(i);
-            if (modification == null) {
-                continue;
-            }
-            stillToVisit--;
-            if (modification.id == updateId) {
-                getLatest();
-                return;
-            }
+        if (modifications.containsKey(updateId)) {
+            getLatest();
         }
     }
 
@@ -100,47 +54,27 @@ public class DataWrapper<T> {
      * @return price data that was published and is maximum according to #successorChooser strategy.
      */
     public PriceData<T> getLatest() {
-        if (modificationsSize.get() == 0) {
+        if (modifications.isEmpty()) {
             return data.get();
         }
-        int expectedVersion;
-        int stillToVisit;
-        do {
-            expectedVersion = version.get();
-            stillToVisit = modificationsSize.get();
-            for (int i = 0; i < modifications.length(); i++) {
-                if (stillToVisit == 0) {
-                    break;
-                }
-                val modification = modifications.get(i);
-                if (modification == null) {
-                    continue;
-                }
-                stillToVisit--;
-                if (modification.status.value() == ModificationStatus.CANCELED) {
-                    if (modifications.compareAndSet(i, modification, null)) {
-                        modificationsSize.decrementAndGet();
-                    }
-                    continue;
-                }
-
-                if (modification.status.value() != ModificationStatus.COMPLETED) {
-                    continue;
-                }
-
-                data.accumulateAndGet(modification.data,
-                    (prev, next) -> prev == null ? next : successorChooser.compare(prev, next) > 0 ? prev : next);
-
-                version.incrementAndGet();
-                if (modifications.compareAndSet(i, modification, null)) {
-                    modificationsSize.decrementAndGet();
-                    expectedVersion++;
-                } else {
-                    version.decrementAndGet();
-                }
+        for (val modification : modifications.values()) {
+            if (modification.status.value() == ModificationStatus.CANCELED) {
+                modifications.remove(modification.id);
+                continue;
             }
-            //means somebody has made some changes in parallel. Need to
-        } while (expectedVersion != version.get());
+
+            if (modification.status.value() != ModificationStatus.COMPLETED) {
+                if (data.get() != null && successorChooser.compare(data.get(), modification.getData()) > 0) {
+                    modifications.remove(modification.id);
+                }
+                continue;
+            }
+
+            data.accumulateAndGet(modification.data,
+                (prev, next) -> prev == null ? next : successorChooser.compare(prev, next) > 0 ? prev : next);
+
+            modifications.remove(modification.id, modification);
+        }
         return data.get();
     }
 
@@ -150,10 +84,7 @@ public class DataWrapper<T> {
     }
 
     void clear() {
-        for (int i = 0; i < modifications.length(); i++) {
-            modifications.set(i, null);
-        }
-        modificationsSize.set(0);
+        modifications.clear();
     }
 
     @Data

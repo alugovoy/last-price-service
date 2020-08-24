@@ -152,4 +152,30 @@ service implementation.
 5. **Add unit tests for shutdown**. Shutdown procedure must be thoroughly covered by unit tests.
 6. **Make performance less dependent on the storage size**. Benchmarks of the `DataWrapper` shows that it is quite 
 performant. And it looks like a lot of time is wasted at the level of the `InMemoryStorage`. If I'd have more time I would 
-investigate the real reason behind that.                
+investigate the real reason behind that.
+
+## Version 1.1 Release Notes
+* [DataWrapper](src/main/java/com/alugovoy/finance/storage/inmemory/DataWrapper.java) has been simplified to use 
+ConcurrentHashMap as collection to keep modifications. Algorithm to retrieve the latest data has been reworked to not 
+check for the version. Idea is that it should return latest data at the moment of starting the call. Thus modifications 
+can be checked just once. As a result benchmarks results has improved by **50%**. And also there are no more limitations 
+in parallel running updates as concurrent hash map can grow dynamically.
+```text
+ Benchmark                                                  (SIZE)  Mode  Cnt        Score        Error  Units
+ InMemoryStorageBenchmark.getLatestWithoutParallelUpdated  1000000  avgt    5      400.524 ±     36.876  ns/op
+ InMemoryStorageBenchmark.getLatestWithoutParallelUpdated   100000  avgt    5      264.520 ±      6.116  ns/op
+ InMemoryStorageBenchmark.getLatestWithoutParallelUpdated    10000  avgt    5       66.988 ±      4.071  ns/op
+ InMemoryStorageBenchmark.parallel                         1000000  avgt    5   211097.582 ±  55473.735  ns/op
+ InMemoryStorageBenchmark.parallel:getLatest               1000000  avgt    5      988.469 ±    218.146  ns/op
+ InMemoryStorageBenchmark.parallel:uploadBatch             1000000  avgt    5  1681861.372 ± 442595.272  ns/op
+ InMemoryStorageBenchmark.parallel                          100000  avgt    5   151212.477 ±  14184.567  ns/op
+ InMemoryStorageBenchmark.parallel:getLatest                100000  avgt    5      567.729 ±     52.051  ns/op
+ InMemoryStorageBenchmark.parallel:uploadBatch              100000  avgt    5  1205725.715 ± 113509.420  ns/op
+ InMemoryStorageBenchmark.parallel                           10000  avgt    5    72991.504 ±   3413.652  ns/op
+ InMemoryStorageBenchmark.parallel:getLatest                 10000  avgt    5      188.091 ±     23.985  ns/op
+ InMemoryStorageBenchmark.parallel:uploadBatch               10000  avgt    5   582615.396 ±  27257.001  ns/op
+```
+* To address Flaws #1 from the list above a modified latch was added. It is really similar to [CountDownLatch](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CountDownLatch.html) 
+but has ability to increase its counter. So now on every start of data upload this latch is increasing and on upload 
+finish it is decreasing. So when we batch complete method is called incrementation function is turned off and we await for 
+counted become zero again, and only after that status of the update is transitted to **COMPLETED**   

@@ -15,7 +15,7 @@ public class StorageShowCase {
     private TestProducer<PriceDetails> producer;
 
     @Before
-    public void initStorage() {
+    public void initStorage() throws InterruptedException {
         storage = new InMemoryStorage<>(1 << 16);
         producer = new TestProducer<>(1 << 16, PriceDetails::new);
         producer.uploadBatch(storage.startBatch(), 1000);

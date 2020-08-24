@@ -137,9 +137,11 @@ public class InMemoryStorage<T> implements Storage<T>, BatchFactory<T> {
     private class InMemoryBatch implements Batch<T> {
 
         private final Update update;
+        private final GrowingLatch completionLatch;
 
         private InMemoryBatch(Update update) {
             this.update = update;
+            this.completionLatch = new GrowingLatch();
         }
 
         /**
@@ -147,30 +149,35 @@ public class InMemoryStorage<T> implements Storage<T>, BatchFactory<T> {
          */
         @Override
         public void upload(Collection<PriceData<T>> chunk) {
-            if (update.status.value() != ModificationStatus.IN_PROGRESS) {
+            if (update.status.value() != ModificationStatus.IN_PROGRESS || !completionLatch.increment()) {
                 throw new IllegalStateException("Cannot upload for finished batch operation");
             }
-            chunk.forEach(p -> {
-                if (shutdownInProgress) {
-                    throw new IllegalStateException("Service is under shutting down");
-                }
-                storage.compute(p.getId(), (id, wrapper) -> {
-                    val modification = new Modification<>(update.id, update.status, p);
-                    if (wrapper == null) {
-                        return new DataWrapper<T>(modification, getDefaultSuccessorComparator());
+            try {
+                chunk.parallelStream().forEach(p -> {
+                    if (shutdownInProgress) {
+                        throw new IllegalStateException("Service is under shutting down");
                     }
-                    wrapper.updateInProgress(modification);
-                    return wrapper;
+                    storage.compute(p.getId(), (id, wrapper) -> {
+                        val modification = new Modification<>(update.id, update.status, p);
+                        if (wrapper == null) {
+                            return new DataWrapper<T>(modification, getDefaultSuccessorComparator());
+                        }
+                        wrapper.updateInProgress(modification);
+                        return wrapper;
+                    });
+                    update.addParticipant(p.getId());
                 });
-                update.addParticipant(p.getId());
-            });
+            } finally {
+                completionLatch.decrement();
+            }
         }
 
         /**
          * {@inheritDoc}
          */
         @Override
-        public void complete() {
+        public void complete() throws InterruptedException {
+            completionLatch.await();
             update.status.complete();
             cleanUpdate(update);
         }

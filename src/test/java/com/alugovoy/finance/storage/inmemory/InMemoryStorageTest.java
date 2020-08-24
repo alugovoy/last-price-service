@@ -25,7 +25,7 @@ public class InMemoryStorageTest {
     private static final Date TO = toDate("2020-06-01");
 
     @Test
-    public void test() {
+    public void test() throws InterruptedException {
         val ids = IntStream.range(0, SIZE).mapToObj(n -> UUID.randomUUID().toString()).collect(toList());
         val storage = new InMemoryStorage<Byte[]>(SIZE);
         val batch = storage.startBatch();
